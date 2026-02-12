@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoL Defensive Kiting Trainer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="ui-layer">
+        <button id="settings-btn" onclick="toggleSettings()">⚙️ Ayarlar</button>
+        <div id="score-board">
+            Skor: <span id="score">0</span><br>
+            Saldırı Hızı: <span id="as-value">0.90</span>
+        </div>
+        <div id="game-over-screen" class="hidden">
+            <h1>OYUN BİTTİ</h1>
+            <p id="fail-reason"></p>
+            <button onclick="restartGame()">Tekrar Dene</button>
+        </div>
+        
+        <!-- Ayarlar Modalı -->
+        <div id="settings-modal" class="hidden">
+            <h2>Ayarlar</h2>
+            <div class="setting-item">
+                <label>Saldırı Hareketi Tuşu:</label>
+                <button id="key-bind-btn" onclick="startKeyBind()">A</button>
+            </div>
+            <div class="setting-item" style="display: none;">
+                <label>Oyun Modu:</label>
+                <select id="game-mode-select" onchange="changeGameMode(this.value)">
+                    <option value="lasthit">Son Vuruş (Last Hit) Modu</option>
+                </select>
+            </div>
+            <p id="key-bind-msg" class="hidden">Yeni tuşa basınız...</p>
+            <button class="close-btn" onclick="toggleSettings()">Kapat</button>
+        </div>
+
+        <div id="tutorial">
+            <p><strong>Sağ Tık:</strong> Hareket Et</p>
+            <p><strong><span id="current-key-display">A</span> + Sol Tık:</strong> Saldırı Modu & Son Vuruş</p>
+            <p>Minyonların canı azaldığında son vuruşu yap!</p>
+        </div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <script src="script.js"></script>
+</body>
+</html>
