@@ -424,18 +424,67 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
-// Sağ Tık: Hareket (mousedown ile daha seri tepki)
+// Sağ Tık: Hareket veya Minyona Saldırı (mousedown ile daha seri tepki)
 window.addEventListener('mousedown', (e) => {
     if (!gameRunning) return;
 
     // Sağ Tık (Button 2)
     if (e.button === 2) {
-        // Sağ tık her zaman saldırı modunu iptal eder ve hareket eder
+        // Sağ tık her zaman saldırı modunu iptal eder
         isAttackMode = false;
         document.body.classList.remove('attack-mode');
 
-        player.targetX = e.clientX;
-        player.targetY = e.clientY;
+        const clickX = e.clientX;
+        const clickY = e.clientY;
+
+        // Önce tıklanan yerde bir kırmızı minyon var mı kontrol et
+        let targetMinion = null;
+        for (let minion of minions) {
+            if (minion.team === 'red') {
+                const distToClick = getDistance(clickX, clickY, minion.x, minion.y);
+                if (distToClick <= minion.radius + 10) {
+                    targetMinion = minion;
+                    break;
+                }
+            }
+        }
+
+        if (targetMinion) {
+            const now = performance.now();
+            const attackCooldown = 1000 / player.attackSpeed;
+            const canAttack = now - player.lastAttackTime >= attackCooldown;
+
+            const distToPlayer = getDistance(player.x, player.y, targetMinion.x, targetMinion.y);
+
+            if (distToPlayer <= player.range + targetMinion.radius) {
+                if (canAttack) {
+                    targetMinion.health -= player.damage;
+                    player.lastAttackTime = now;
+
+                    if (targetMinion.health <= 0) {
+                        targetMinion.killedByPlayer = true;
+                        score += 50;
+                        scoreEl.innerText = score;
+                    }
+
+                    // Saldırı sonrası olduğu yerde kal
+                    player.targetX = player.x;
+                    player.targetY = player.y;
+                } else {
+                    // Saldırı hazır değilse minyona doğru yürüsün
+                    player.targetX = clickX;
+                    player.targetY = clickY;
+                }
+            } else {
+                // Menzil dışındaysa tıklanan yere yürüsün (minyona yaklaşma)
+                player.targetX = clickX;
+                player.targetY = clickY;
+            }
+        } else {
+            // Minyon yoksa normal hareket
+            player.targetX = clickX;
+            player.targetY = clickY;
+        }
     }
 });
 
