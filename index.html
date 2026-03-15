@@ -24,7 +24,11 @@
             <h2>Ayarlar</h2>
             <div class="setting-item">
                 <label>Saldırı Hareketi Tuşu:</label>
-                <button id="key-bind-btn" onclick="startKeyBind()">A</button>
+                <button id="key-bind-btn" onclick="startKeyBind('attack')">A</button>
+            </div>
+            <div class="setting-item">
+                <label>Durdurma Tuşu:</label>
+                <button id="stop-key-bind-btn" onclick="startKeyBind('stop')">S</button>
             </div>
             <div class="setting-item" style="display: none;">
                 <label>Oyun Modu:</label>
@@ -39,6 +43,7 @@
         <div id="tutorial">
             <p><strong>Sağ Tık:</strong> Hareket Et</p>
             <p><strong><span id="current-key-display">A</span> + Sol Tık:</strong> Saldırı Modu & Son Vuruş</p>
+            <p><strong><span id="current-stop-key-display">S</span>:</strong> Durdur</p>
             <p>Minyonların canı azaldığında son vuruşu yap!</p>
         </div>
     </div>
