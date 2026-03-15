@@ -8,8 +8,10 @@ const failReasonEl = document.getElementById('fail-reason');
 // Ayarlar Elementleri
 const settingsModal = document.getElementById('settings-modal');
 const keyBindBtn = document.getElementById('key-bind-btn');
+const stopKeyBindBtn = document.getElementById('stop-key-bind-btn');
 const keyBindMsg = document.getElementById('key-bind-msg');
 const currentKeyDisplay = document.getElementById('current-key-display');
+const currentStopKeyDisplay = document.getElementById('current-stop-key-display');
 
 // Canvas Boyutlandırma
 function resizeCanvas() {
@@ -35,12 +37,21 @@ function changeGameMode(mode) {
 // Tuş Ayarları
 let attackKey = 'KeyA'; // Varsayılan A tuşu
 let attackKeyDisplay = 'A';
+let stopKey = 'KeyS';
+let stopKeyDisplay = 'S';
 let isBindingKey = false;
+let bindingTarget = null;
 let isAttackMode = false; // A'ya basıldı mı?
+let attackMove = {
+    active: false,
+    target: null,
+    moveX: 0,
+    moveY: 0
+};
 
 const SPEEDS = {
     player: 220,
-    minion: 2.2
+    minion: 132
 };
 
 let lastFrameTime = performance.now();
@@ -49,7 +60,7 @@ let lastFrameTime = performance.now();
 let projectiles = [];
 
 class Projectile {
-    constructor(startX, startY, target, damage, color, speed = 7) {
+    constructor(startX, startY, target, damage, color, speed = 420) {
         this.x = startX;
         this.y = startY;
         this.target = target;
@@ -60,7 +71,7 @@ class Projectile {
         this.active = true;
     }
 
-    update() {
+    update(deltaSeconds) {
         if (!this.target || this.target.health <= 0) {
             this.active = false;
             return;
@@ -74,8 +85,9 @@ class Projectile {
         }
 
         const angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
-        this.x += Math.cos(angle) * this.speed;
-        this.y += Math.sin(angle) * this.speed;
+        const step = this.speed * deltaSeconds;
+        this.x += Math.cos(angle) * step;
+        this.y += Math.sin(angle) * step;
     }
 
     draw() {
@@ -118,6 +130,80 @@ function randomRange(min, max) {
     return Math.random() * (max - min) + min;
 }
 
+function applyPlayerAttack(targetMinion, now) {
+    targetMinion.health -= player.damage;
+    player.lastAttackTime = now;
+    if (targetMinion.health <= 0) {
+        targetMinion.killedByPlayer = true;
+        score += 50;
+        scoreEl.innerText = score;
+    }
+}
+
+function findClosestEnemyInRange() {
+    let closest = null;
+    let closestDist = Infinity;
+    for (let minion of minions) {
+        if (minion.team === 'red') {
+            const distToPlayer = getDistance(player.x, player.y, minion.x, minion.y);
+            if (distToPlayer <= player.range + minion.radius && distToPlayer < closestDist) {
+                closest = minion;
+                closestDist = distToPlayer;
+            }
+        }
+    }
+    return closest;
+}
+
+function handleAttackMove() {
+    if (!attackMove.active) return;
+
+    const now = performance.now();
+    const attackCooldown = 1000 / player.attackSpeed;
+    const canAttack = now - player.lastAttackTime >= attackCooldown;
+
+    if (attackMove.target && attackMove.target.health <= 0) {
+        attackMove.target = null;
+    }
+
+    if (attackMove.target) {
+        const distToPlayer = getDistance(player.x, player.y, attackMove.target.x, attackMove.target.y);
+        if (distToPlayer <= player.range + attackMove.target.radius) {
+            if (canAttack) {
+                applyPlayerAttack(attackMove.target, now);
+                attackMove.active = false;
+                attackMove.target = null;
+                player.targetX = player.x;
+                player.targetY = player.y;
+            } else {
+                player.targetX = player.x;
+                player.targetY = player.y;
+            }
+        } else {
+            player.targetX = attackMove.target.x;
+            player.targetY = attackMove.target.y;
+        }
+        return;
+    }
+
+    const inRangeTarget = findClosestEnemyInRange();
+    if (inRangeTarget) {
+        if (canAttack) {
+            applyPlayerAttack(inRangeTarget, now);
+            attackMove.active = false;
+            player.targetX = player.x;
+            player.targetY = player.y;
+        } else {
+            player.targetX = player.x;
+            player.targetY = player.y;
+        }
+        return;
+    }
+
+    player.targetX = attackMove.moveX;
+    player.targetY = attackMove.moveY;
+}
+
 // Oyun Başlatma/Sıfırlama
 function restartGame() {
     gameRunning = true;
@@ -137,6 +223,8 @@ function restartGame() {
     lastFrameTime = performance.now();
 
     isAttackMode = false;
+    attackMove.active = false;
+    attackMove.target = null;
     document.body.classList.remove('attack-mode');
     gameOverScreen.classList.add('hidden');
     requestAnimationFrame(gameLoop);
@@ -154,24 +242,33 @@ function toggleSettings() {
     // Oyun durdurulabilir istenirse, şimdilik devam etsin
 }
 
-function startKeyBind() {
+function startKeyBind(target) {
     isBindingKey = true;
-    keyBindBtn.classList.add('binding');
-    keyBindBtn.innerText = '...';
+    bindingTarget = target;
+    const activeBtn = target === 'stop' ? stopKeyBindBtn : keyBindBtn;
+    activeBtn.classList.add('binding');
+    activeBtn.innerText = '...';
     keyBindMsg.classList.remove('hidden');
 }
 
 function updateKeyBinding(code, key) {
-    attackKey = code;
-    attackKeyDisplay = key.toUpperCase();
-    
-    // UI Güncelle
-    keyBindBtn.innerText = attackKeyDisplay;
-    currentKeyDisplay.innerText = attackKeyDisplay;
+    if (bindingTarget === 'stop') {
+        stopKey = code;
+        stopKeyDisplay = key.toUpperCase();
+        stopKeyBindBtn.innerText = stopKeyDisplay;
+        currentStopKeyDisplay.innerText = stopKeyDisplay;
+    } else {
+        attackKey = code;
+        attackKeyDisplay = key.toUpperCase();
+        keyBindBtn.innerText = attackKeyDisplay;
+        currentKeyDisplay.innerText = attackKeyDisplay;
+    }
     
     // Reset
     isBindingKey = false;
+    bindingTarget = null;
     keyBindBtn.classList.remove('binding');
+    stopKeyBindBtn.classList.remove('binding');
     keyBindMsg.classList.add('hidden');
 }
 
@@ -238,8 +335,9 @@ class Minion {
             if (dist > attackDist && !this.isAttacking) {
                 // Hedefe yürü
                 const angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
-                this.x += Math.cos(angle) * this.speed;
-                this.y += Math.sin(angle) * this.speed;
+                const step = this.speed * deltaSeconds;
+                this.x += Math.cos(angle) * step;
+                this.y += Math.sin(angle) * step;
             } else {
                 // Saldır
                 const now = performance.now();
@@ -382,12 +480,13 @@ function gameLoop(timestamp) {
 
     spawnEnemy(timestamp);
     
+    handleAttackMove();
     updatePlayer(deltaSeconds);
     
     minions.forEach(minion => minion.update(deltaSeconds));
     
     // Mermileri güncelle
-    projectiles.forEach(p => p.update());
+    projectiles.forEach(p => p.update(deltaSeconds));
     projectiles = projectiles.filter(p => p.active);
 
     // Ölü minyonları kontrol et ve temizle
@@ -422,6 +521,15 @@ window.addEventListener('keydown', (e) => {
         isAttackMode = true;
         document.body.classList.add('attack-mode'); // CSS ile cursor değişecek
     }
+
+    if (e.code === stopKey && gameRunning) {
+        isAttackMode = false;
+        attackMove.active = false;
+        attackMove.target = null;
+        player.targetX = player.x;
+        player.targetY = player.y;
+        document.body.classList.remove('attack-mode');
+    }
 });
 
 // Sağ Tık: Hareket veya Minyona Saldırı (mousedown ile daha seri tepki)
@@ -432,6 +540,8 @@ window.addEventListener('mousedown', (e) => {
     if (e.button === 2) {
         // Sağ tık her zaman saldırı modunu iptal eder
         isAttackMode = false;
+        attackMove.active = false;
+        attackMove.target = null;
         document.body.classList.remove('attack-mode');
 
         const clickX = e.clientX;
@@ -458,14 +568,7 @@ window.addEventListener('mousedown', (e) => {
 
             if (distToPlayer <= player.range + targetMinion.radius) {
                 if (canAttack) {
-                    targetMinion.health -= player.damage;
-                    player.lastAttackTime = now;
-
-                    if (targetMinion.health <= 0) {
-                        targetMinion.killedByPlayer = true;
-                        score += 50;
-                        scoreEl.innerText = score;
-                    }
+                    applyPlayerAttack(targetMinion, now);
 
                     // Saldırı sonrası olduğu yerde kal
                     player.targetX = player.x;
@@ -502,10 +605,6 @@ window.addEventListener('click', (e) => {
 
     // SADECE Attack Mode açıksa saldırı yapılabilir
     if (isAttackMode) {
-        const now = performance.now();
-        const attackCooldown = 1000 / player.attackSpeed;
-        const canAttack = now - player.lastAttackTime >= attackCooldown;
-
         const clickX = e.clientX;
         const clickY = e.clientY;
         
@@ -539,48 +638,13 @@ window.addEventListener('click', (e) => {
             }
         }
 
-        if (targetMinion) {
-            // Menzil kontrolü
-            const distToPlayer = getDistance(player.x, player.y, targetMinion.x, targetMinion.y);
-            if (distToPlayer <= player.range + targetMinion.radius) {
-                // Saldırı hızı kontrolü
-                if (canAttack) {
-                    targetMinion.health -= player.damage;
-                    player.lastAttackTime = now;
-                    
-                    // Son vuruş kontrolü
-                    if (targetMinion.health <= 0) {
-                        targetMinion.killedByPlayer = true; 
-                        score += 50;
-                        scoreEl.innerText = score;
-                    }
-                    
-                    // Saldırı sonrası dur (LoL'deki gibi)
-                    player.targetX = player.x;
-                    player.targetY = player.y;
-                } else {
-                    // Saldırı hazır değilse hiçbir şey yapma veya sadece yürüme hedefini iptal et
-                    // LoL'de bekleme süresindeyken attack move yaparsanız karakter o yöne yürür
-                    // Ama burada kullanıcı "direkt vurmasını" ama bekleme süresine takılmasını istiyor.
-                    // Şimdilik saldırı hazır değilse hareket etmesini sağlayalım (menzil dışı gibi davranalım)
-                    player.targetX = clickX;
-                    player.targetY = clickY;
-                }
-            } else {
-                // Menzil dışındaysa tıklandığı yere git
-                player.targetX = clickX;
-                player.targetY = clickY;
-            }
+        attackMove.active = true;
+        attackMove.target = targetMinion;
+        attackMove.moveX = clickX;
+        attackMove.moveY = clickY;
 
-            isAttackMode = false;
-            document.body.classList.remove('attack-mode');
-        } else {
-            // Menzilde veya tıklanan yerde kimse yoksa -> Tıklanan yere yürü
-            player.targetX = clickX;
-            player.targetY = clickY;
-            isAttackMode = false;
-            document.body.classList.remove('attack-mode');
-        }
+        isAttackMode = false;
+        document.body.classList.remove('attack-mode');
     }
 });
 
